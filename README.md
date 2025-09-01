@@ -91,7 +91,8 @@ Copy code
 }
 If you only use client-credentials flows, you don’t need a refresh token.
 
-🪣 S3 layout
+## 🪣 S3 layout
+
 perl
 Copy code
 s3://<BUCKET>/
@@ -102,7 +103,8 @@ s3://<BUCKET>/
      ├─ artists_data/
      ├─ album_data/
      └─ songs_data/
-📦 Lambda Layer (dependencies)
+## 📦 Lambda Layer (dependencies)
+
 Build once and attach to both functions:
 
 bash
@@ -112,7 +114,8 @@ pip install -t python spotipy==2.23.0 pandas==2.2.2 requests urllib3 certifi cha
 zip -r9 spotipy_pandas_layer.zip python
 Upload as a Lambda Layer (runtime: Python 3.11) and attach it.
 
-🧱 IAM (minimal policy)
+## 🧱 IAM (minimal policy)
+
 Attach to both Lambdas (replace YOUR_BUCKET):
 
 json
@@ -129,16 +132,17 @@ Copy code
     {"Effect":"Allow","Action":["secretsmanager:GetSecretValue"],"Resource":"*"}
   ]
 }
-⚙️ Lambda configuration
-data_extraction — ENV VARS
-Name	Example/Notes
-BUCKET_NAME	spotify-etl-pipeline-hp (or your bucket)
-RAW_PREFIX	raw_data/to_be_processed/
-CLIENT_ID	Only if using client-credentials
-CLIENT_SECRET	Only if using client-credentials
-SPOTIFY_SECRET_ID	Secrets Manager id with refresh token JSON (opt.)
+## ⚙️ Lambda configuration
 
-Use SpotifyClientCredentials for public endpoints.
+-data_extraction — ENV VARS
+-Name	Example/Notes
+-BUCKET_NAME	spotify-etl-pipeline-hp (or your bucket)
+-RAW_PREFIX	raw_data/to_be_processed/
+-CLIENT_ID	Only if using client-credentials
+-CLIENT_SECRET	Only if using client-credentials
+-SPOTIFY_SECRET_ID	Secrets Manager id with refresh token JSON (opt.)
+
+ Use SpotifyClientCredentials for public endpoints.
 
 For user endpoints, initialize SpotifyOAuth with credentials read from Secrets Manager (refresh-token flow).
 
@@ -156,18 +160,20 @@ Important normalization (release dates):
 python
 Copy code
 # album_df columns: release_date, release_date_precision ∈ {"year","month","day"}
+
 def _parse_release_date(date_str, precision):
     import pandas as pd
     if pd.isna(date_str): return pd.NaT
     if precision == "year":  return pd.to_datetime(f"{date_str}-01-01", errors="coerce")
     if precision == "month": return pd.to_datetime(f"{date_str}-01",    errors="coerce")
     return pd.to_datetime(date_str, errors="coerce")
-⏰ Scheduling & events
+## ⏰ Scheduling & events
 EventBridge rule: rate(1 day) → target data_extraction
 
 S3 Notification: ObjectCreated on raw_data/to_be_processed/ → target data_transformation
 
-🧩 Data model
+## 🧩 Data model
+
 artists_data
 column	type	description
 artist_id	string	PK
@@ -194,7 +200,8 @@ song_added	datetime	Added-at timestamp (UTC)
 album_id	string	FK → album_data.album_id
 artist_id	string	FK → artists_data.artist_id
 
-🔍 Glue & Athena
+## 🔍 Glue & Athena
+
 Glue Crawler
 
 Data store: S3 transformed_data/
@@ -232,7 +239,8 @@ FROM w
 GROUP BY song_id
 ORDER BY median_popularity_across_weeks DESC
 LIMIT 50;
-🧪 Notes & gotchas
+## 🧪 Notes & gotchas
+
 Playlist 404s: Some chart playlists aren’t API-exposed in every region. Use Search API to resolve IDs, or snapshot another public editorial list daily and aggregate weekly.
 
 OAuth errors after consent: usually redirect URI mismatch or incorrect client secret. Delete .cache locally and re-auth.
@@ -241,14 +249,16 @@ Lambda import errors: Your layer zip must contain a top-level python/ folder and
 
 S3 key safety: Avoid : in filenames when composing timestamps.
 
-🔒 Security
+## 🔒 Security
+
 Rotate your Spotify client secret if it’s ever exposed.
 
 Store secrets (client id/secret, refresh token) in AWS Secrets Manager.
 
 Least-privilege IAM policies; separate roles per Lambda when possible.
 
-📜 License
+## 📜 License
+
 MIT (or update to your preferred license).
 
 makefile
