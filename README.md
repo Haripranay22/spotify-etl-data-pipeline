@@ -7,6 +7,8 @@ This project automates the extraction of data from the **Spotify API**, processe
 ## Architecture Summary
 
 The workflow follows three main stages: **Extract**, **Transform**, and **Load (ETL)**. Each stage uses managed AWS services to schedule, process, store, catalog, and analyze the data end-to-end.
+<img width="1536" height="1024" alt="Architecture Diagram" src="https://github.com/user-attachments/assets/a5c6db52-7b29-46ca-b96e-ff437f851a0f" />
+
 
 ---
 
