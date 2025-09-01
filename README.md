@@ -97,21 +97,32 @@ perl
 Copy code
 s3://<BUCKET>/
   ├─ raw_data/
-  │  ├─ to_be_processed/        # extractor writes JSON here
+  
+  │  ├─ to_be_processed/  # extractor writes JSON here
+  
   │  └─ processed_data/         # transformer moves processed JSON here
+  
   └─ transformed_data/
+  
      ├─ artists_data/
+     
      ├─ album_data/
+     
      └─ songs_data/
+     
 ## 📦 Lambda Layer (dependencies)
 
 Build once and attach to both functions:
 
 bash
+
 Copy code
+
 mkdir -p python
+
 pip install -t python spotipy==2.23.0 pandas==2.2.2 requests urllib3 certifi charset-normalizer idna
 zip -r9 spotipy_pandas_layer.zip python
+
 Upload as a Lambda Layer (runtime: Python 3.11) and attach it.
 
 ## 🧱 IAM (minimal policy)
@@ -119,6 +130,7 @@ Upload as a Lambda Layer (runtime: Python 3.11) and attach it.
 Attach to both Lambdas (replace YOUR_BUCKET):
 
 json
+
 Copy code
 {
   "Version": "2012-10-17",
@@ -132,14 +144,21 @@ Copy code
     {"Effect":"Allow","Action":["secretsmanager:GetSecretValue"],"Resource":"*"}
   ]
 }
+
 ## ⚙️ Lambda configuration
 
 -data_extraction — ENV VARS
+
 -Name	Example/Notes
+
 -BUCKET_NAME	spotify-etl-pipeline-hp (or your bucket)
+
 -RAW_PREFIX	raw_data/to_be_processed/
+
 -CLIENT_ID	Only if using client-credentials
+
 -CLIENT_SECRET	Only if using client-credentials
+
 -SPOTIFY_SECRET_ID	Secrets Manager id with refresh token JSON (opt.)
 
  Use SpotifyClientCredentials for public endpoints.
@@ -147,10 +166,15 @@ Copy code
 For user endpoints, initialize SpotifyOAuth with credentials read from Secrets Manager (refresh-token flow).
 
 data_transformation — ENV VARS
+
 Name	Example/Notes
+
 BUCKET_NAME	same as above
+
 RAW_PREFIX	raw_data/to_be_processed/
+
 PROCESSED_PREFIX	raw_data/processed_data/
+
 TGT_PREFIX	transformed_data/
 
 Trigger: S3 ObjectCreated on RAW_PREFIX.
@@ -158,16 +182,24 @@ Trigger: S3 ObjectCreated on RAW_PREFIX.
 Important normalization (release dates):
 
 python
+
 Copy code
 # album_df columns: release_date, release_date_precision ∈ {"year","month","day"}
 
 def _parse_release_date(date_str, precision):
+
     import pandas as pd
+    
     if pd.isna(date_str): return pd.NaT
+    
     if precision == "year":  return pd.to_datetime(f"{date_str}-01-01", errors="coerce")
+    
     if precision == "month": return pd.to_datetime(f"{date_str}-01",    errors="coerce")
+    
     return pd.to_datetime(date_str, errors="coerce")
+    
 ## ⏰ Scheduling & events
+
 EventBridge rule: rate(1 day) → target data_extraction
 
 S3 Notification: ObjectCreated on raw_data/to_be_processed/ → target data_transformation
@@ -175,30 +207,52 @@ S3 Notification: ObjectCreated on raw_data/to_be_processed/ → target data_tran
 ## 🧩 Data model
 
 artists_data
+
 column	type	description
+
 artist_id	string	PK
+
 artist_name	string	
+
 external_url	string	Public Spotify URL
 
+
 album_data
+
 column	type	description
+
 album_id	string	PK
+
 name	string	album name
+
 release_date	date	normalized to a date
+
 release_date_precision	string	`year
+
 total_tracks	int	
+
 url	string	Public Spotify URL
 
 songs_data
+
 column	type	description
+
 song_id	string	PK
+
 song_name	string	
+
 duration_ms	int	
+
 url	string	Public Spotify URL
+
 popularity	int	0–100
+
 song_added	datetime	Added-at timestamp (UTC)
+
 album_id	string	FK → album_data.album_id
+
 artist_id	string	FK → artists_data.artist_id
+
 
 ## 🔍 Glue & Athena
 
@@ -217,28 +271,49 @@ Set a query results location in S3
 Example queries:
 
 sql
+
 Copy code
+
 -- Weekly top artists by weeks appearing in Top 50
+
 SELECT artist_id,
+
        COUNT(DISTINCT date_trunc('week', song_added)) AS weeks_on_chart
+       
 FROM songs_data
+
 GROUP BY artist_id
+
 ORDER BY weeks_on_chart DESC
+
 LIMIT 20;
 
+
 -- Most consistent tracks (median popularity over a week)
+
 WITH w AS (
+
   SELECT song_id,
+  
          date_trunc('week', song_added) AS week_start,
+         
          approx_percentile(popularity, 0.5) AS med_pop
+         
   FROM songs_data
+  
   GROUP BY 1, 2
+  
 )
 SELECT song_id, avg(med_pop) AS median_popularity_across_weeks
+
 FROM w
+
 GROUP BY song_id
+
 ORDER BY median_popularity_across_weeks DESC
+
 LIMIT 50;
+
 ## 🧪 Notes & gotchas
 
 Playlist 404s: Some chart playlists aren’t API-exposed in every region. Use Search API to resolve IDs, or snapshot another public editorial list daily and aggregate weekly.
@@ -262,5 +337,7 @@ Least-privilege IAM policies; separate roles per Lambda when possible.
 MIT (or update to your preferred license).
 
 makefile
+
 Copy code
+
 ::contentReference[oaicite:0]{index=0}
