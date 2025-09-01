@@ -94,8 +94,11 @@ If you only use client-credentials flows, you don’t need a refresh token.
 ## 🪣 S3 layout
 
 perl
+
 Copy code
+
 s3://<BUCKET>/
+
   ├─ raw_data/
   
   │  ├─ to_be_processed/  # extractor writes JSON here
@@ -204,115 +207,6 @@ EventBridge rule: rate(1 day) → target data_extraction
 
 S3 Notification: ObjectCreated on raw_data/to_be_processed/ → target data_transformation
 
-## 🧩 Data model
-
-artists_data
-
-column	type	description
-
-artist_id	string	PK
-
-artist_name	string	
-
-external_url	string	Public Spotify URL
-
-
-album_data
-
-column	type	description
-
-album_id	string	PK
-
-name	string	album name
-
-release_date	date	normalized to a date
-
-release_date_precision	string	`year
-
-total_tracks	int	
-
-url	string	Public Spotify URL
-
-songs_data
-
-column	type	description
-
-song_id	string	PK
-
-song_name	string	
-
-duration_ms	int	
-
-url	string	Public Spotify URL
-
-popularity	int	0–100
-
-song_added	datetime	Added-at timestamp (UTC)
-
-album_id	string	FK → album_data.album_id
-
-artist_id	string	FK → artists_data.artist_id
-
-
-## 🔍 Glue & Athena
-
-Glue Crawler
-
-Data store: S3 transformed_data/
-
-Database: e.g., spotify_analytics
-
-Run after each transform (or on a schedule)
-
-Athena
-
-Set a query results location in S3
-
-Example queries:
-
-sql
-
-Copy code
-
--- Weekly top artists by weeks appearing in Top 50
-
-SELECT artist_id,
-
-       COUNT(DISTINCT date_trunc('week', song_added)) AS weeks_on_chart
-       
-FROM songs_data
-
-GROUP BY artist_id
-
-ORDER BY weeks_on_chart DESC
-
-LIMIT 20;
-
-
--- Most consistent tracks (median popularity over a week)
-
-WITH w AS (
-
-  SELECT song_id,
-  
-         date_trunc('week', song_added) AS week_start,
-         
-         approx_percentile(popularity, 0.5) AS med_pop
-         
-  FROM songs_data
-  
-  GROUP BY 1, 2
-  
-)
-SELECT song_id, avg(med_pop) AS median_popularity_across_weeks
-
-FROM w
-
-GROUP BY song_id
-
-ORDER BY median_popularity_across_weeks DESC
-
-LIMIT 50;
 
 ## 🧪 Notes & gotchas
 
